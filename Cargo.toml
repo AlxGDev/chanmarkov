@@ -1,0 +1,17 @@
+[package]
+name = "chanmarkov"
+version = "0.1.0"
+authors = ["AGoetz Dev <agoetz.dev@gmail.com>"]
+
+[workspace]
+
+[dependencies]
+hyper = ">= 0.12"
+hyper-tls = ">= 0.3.0"
+serde = ">= 1.0.75"
+serde_json = ">= 1.0"
+serde_derive = ">= 1.0.75"
+regex = "1"
+lazy_static = "1.1.0"
+text_io = "0.1.7"
+markovchain = { path = "markovchain" }
