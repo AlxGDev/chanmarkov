@@ -71,7 +71,7 @@ impl<T: Eq + Hash + Clone> GenericMarkovChain<T> {
             let mut count = res.len();
 
             while count < max_words as usize{
-                    let index = res.len()-self.order as usize;
+                    let index = if res.len() > self.order as usize {res.len()-self.order as usize} else {0};
                     let key = res[index .. res.len()].to_vec();
                     if let Some(prob) = self.markov_body.get(&key){
                         if let Some(next) = prob.pick(&mut rng){
