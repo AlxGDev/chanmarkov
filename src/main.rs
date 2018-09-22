@@ -9,6 +9,7 @@ extern crate serde_json;
 #[macro_use] 
 extern crate lazy_static;
 extern crate regex;
+extern crate futures;
 
 
 extern crate hyper;
@@ -20,6 +21,7 @@ use hyper::Client;
 use hyper_tls::HttpsConnector;
 use hyper::rt::{self, Future, Stream};
 use regex::Regex;
+use futures::future::join_all;
 
 use std::sync::{Arc, RwLock};
 
@@ -28,30 +30,59 @@ use markovchain::markov_chain::GenericMarkovChain;
 fn main() {
     println!("Enter the board:");
     let board: String = read!("{}");
-    println!("Enter the thread:");
+    /*println!("Enter the thread:");
     let thread: String = read!("{}");
-    let thread_i = thread.parse::<i32>().unwrap();
+    let thread_i = thread.parse::<i32>().unwrap();*/
 
     let markov_chain: Arc<RwLock<GenericMarkovChain<String>>> = Arc::new(RwLock::new(GenericMarkovChain::new(2)));
-    /*let fut = fetch_threads("d")
-        // use the parsed vector
-        .map(|users| {
-            
-            // print ids
-            let threads :Vec<i32> = users.iter().flat_map(|s| s.threads.iter()).map(|t| t.no).collect();
-            println!("Thread ids: {:#?}", threads);
-           
+    let markov_clone = markov_chain.clone();
+    let fut = fetch_threads(&board)
+        .and_then(move |pages| {
+            let threads :Vec<i32> =pages.iter().flat_map(|s| s.threads.iter()).map(|t| t.no).collect();
+            let mut futures = Vec::new();
+            threads.iter().for_each(|i| {
+                futures.push(
+                    fetch_thread(&board, i)
+                    .or_else(|e| {
+                        match e {
+                            FetchError::Http(e) => eprintln!("http error: {}", e),
+                            FetchError::Json(e) => eprintln!("json parsing error: {}", e),
+                        }
+                        let fake_result: Vec<Post> = Vec::new();
+                        Ok(fake_result)
+                    })
+                );
+            });
+            join_all(futures)
         })
-        // if there was an error print it
+        .map(move |result|{
+            result.iter().for_each(|posts|{
+                let comments :Vec<String> = posts.into_iter()   
+                                            .map(|post| html_unescape(&post.com))
+                                            .map(|s| clean_post(&s))
+                                            .filter(|s| !s.is_empty()).collect();
+            
+                comments.iter()
+                .flat_map(|s| s.split("\n"))
+                .for_each(|s| markov_clone.write().unwrap()
+                            .add(&s.split_whitespace()
+                                .filter(|&s| !s.is_empty())
+                                .map(|s| s.to_string())
+                                .collect()
+                                )
+                );
+            });
+            println!("MarkovChain: {:#?}", markov_clone.write().unwrap().generate(20));
+        })
         .map_err(|e| {
             match e {
                 FetchError::Http(e) => eprintln!("http error: {}", e),
                 FetchError::Json(e) => eprintln!("json parsing error: {}", e),
             }
-        }); */
+        });
 
    
-    let fut = fetch_thread(&board, &thread_i)
+    /*let fut = fetch_thread(&board, &thread_i)
         // use the parsed vector
         .map(move |posts| {
             
@@ -81,7 +112,7 @@ fn main() {
                 FetchError::Http(e) => eprintln!("http error: {}", e),
                 FetchError::Json(e) => eprintln!("json parsing error: {}", e),
             }
-        });
+        }); */
     
 
     // Run the runtime with the future trying to fetch, parse and print json.
@@ -281,7 +312,7 @@ fn fetch_threads(board: &str) -> impl Future<Item=Vec<ChanPage>, Error=FetchErro
 }
 
 fn fetch_thread(board: &str, thread: &i32) -> impl Future<Item=Vec<Post>, Error=FetchError> {
-    
+    println!("Fetching thread: {}",thread);
     let url = "http://a.4cdn.org/?/thread/#.json".replace("?", board).replace("#", thread.to_string().as_str()).parse().unwrap();
     let https = HttpsConnector::new(4).expect("TLS initialization failed");
     let client = Client::builder().build::<_, hyper::Body>(https);

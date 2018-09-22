@@ -47,6 +47,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "chanmarkov"
 version = "0.1.0"
 dependencies = [
+ "futures 0.1.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.12.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper-tls 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
