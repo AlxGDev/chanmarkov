@@ -17,10 +17,10 @@ pub struct GenericMarkovChain <T: Eq + Hash + Clone>{
 impl<T: Eq + Hash + Clone> GenericMarkovChain<T> {
 
     pub fn new(order: i32)-> GenericMarkovChain<T> {
-         GenericMarkovChain { order: order, starter: IndexSet::new(), markov_body: HashMap::new() }
+         GenericMarkovChain { order, starter: IndexSet::new(), markov_body: HashMap::new() }
     }
 
-    pub fn add(&mut self, tokens: &Vec<T>) where T: Eq + Hash + Clone{
+    pub fn add(&mut self, tokens: &[T]) where T: Eq + Hash + Clone{
         if !tokens.is_empty(){
             
             let mut key: Vec<T> = Vec::new();
@@ -43,7 +43,7 @@ impl<T: Eq + Hash + Clone> GenericMarkovChain<T> {
                         count+=1;
                     }
                     if index2 < tokens.len() {
-                        let prob = self.markov_body.entry(key.clone()).or_insert(ProbabilityDistribution::new());
+                        let prob = self.markov_body.entry(key.clone()).or_insert_with(ProbabilityDistribution::new);
                         prob.add(&tokens[index2]);
                     }
                     if index == 0 {
@@ -62,30 +62,33 @@ impl<T: Eq + Hash + Clone> GenericMarkovChain<T> {
         let mut rng = thread_rng();
         let mut res : Vec<T> = Vec::new();
         //pick start word
-        let start = self.starter.get_index(rng.gen_range(0, self.starter.len()));
-        if let Some(x) = start {
-            
-            for token in x {
-                res.push(token.clone());   
-            }
-            let mut count = res.len();
+        if self.starter.len() > 0{
+            let start = self.starter.get_index(rng.gen_range(0, self.starter.len()));
+            if let Some(x) = start {
+                
+                for token in x {
+                    res.push(token.clone());   
+                }
+                let mut count = res.len();
 
-            while count < max_words as usize{
-                    let index = if res.len() > self.order as usize {res.len()-self.order as usize} else {0};
-                    let key = res[index .. res.len()].to_vec();
-                    if let Some(prob) = self.markov_body.get(&key){
-                        if let Some(next) = prob.pick(&mut rng){
-                            res.push(next.clone());
-                            count+=1;
-                            
+                while count < max_words as usize{
+                        let index = if res.len() > self.order as usize {res.len()-self.order as usize} else {0};
+                        let key = res[index .. res.len()].to_vec();
+                        if let Some(prob) = self.markov_body.get(&key){
+                            if let Some(next) = prob.pick(&mut rng){
+                                res.push(next.clone());
+                                count+=1;
+                                
+                            } else {
+                                break;
+                            }
                         } else {
                             break;
-                        }
-                    } else {
-                        break;
-                    }  
-            } 
+                        }  
+                } 
+            }
         }
+        
         res
         
     }

@@ -6,9 +6,13 @@ authors = ["AGoetz Dev <agoetz.dev@gmail.com>"]
 [workspace]
 
 [dependencies]
-hyper = ">= 0.12"
-hyper-tls = ">= 0.3.0"
-futures = "*"
+env_logger = "0.5"
+actix = "0.7"
+actix-web = { version = "0.7" }
+dotenv = "0.10"
+#hyper = ">= 0.12"
+#hyper-tls = ">= 0.3.0"
+futures = "0.1"
 serde = ">= 1.0.75"
 serde_json = ">= 1.0"
 serde_derive = ">= 1.0.75"
