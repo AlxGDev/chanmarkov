@@ -12,7 +12,7 @@ use models::ChanPage;
 use models::Thread;
 use httputil;
 use messages::MarkovGenerate;
-
+use messages::MarkovFeed;
 
 
 pub struct MarkovActor {
@@ -28,31 +28,37 @@ impl MarkovActor {
          MarkovActor { markov_chain: GenericMarkovChain::new(order), board: board, refresh_rate: refresh_rate }
     }
 
-    fn get_new_chain(&self, ctx: &mut Context<Self>) {
+    fn renew_chain(&self, ctx: &mut Context<Self>) {
        
-        let markov_chain: GenericMarkovChain<String> = GenericMarkovChain::new(2);
+        //let markov_chain: GenericMarkovChain<String> = GenericMarkovChain::new(2);
         let board_clone = self.board.clone();
-        ctx.run_later(Duration::new(self.refresh_rate, 0), |_act, ctx| {
-            println!("Updating chain");
-            let wrapped = fut::wrap_future::<_, Self>(
-               fill_markov(board_clone, markov_chain)
-              ).then(|result, actor, ctx_|{
-                    match result {
-                        Ok(e) => actor.markov_chain = e,
-                        Err(e) => match e {
-                            //FetchError::Http(e) => eprintln!("http error: {}", e),
-                            FetchError::Json(e) => eprintln!("json parsing error: {}", e),
-                            FetchError::Other(e) => eprintln!("other error: {}", e),
-                        },
-                    }
-                    actor.get_new_chain(ctx_);
-                    fut::ok::<_, _,_>(())
-              }); 
-            ctx.spawn(
-               wrapped
-            );
 
-        });
+        info!("Updating chain");
+        let wrapped = fut::wrap_future::<_, Self>(get_tokenized_comments(board_clone))
+        .then(|result, actor, ctx_1|{
+            match result {
+                Ok(m) => {
+                    actor.markov_chain.clear();
+                    m.iter().for_each(|s| {
+                        actor.markov_chain.add(s);
+                    });
+                    info!("Finished renewing chain: {}", actor.markov_chain.len());
+                },
+                Err(e) => match e {
+                    FetchError::Http(e) => error!("http error: {}", e),
+                    FetchError::Json(e) => error!("json parsing error: {}", e),
+                    FetchError::Other(e) => error!("other error: {}", e),
+                },
+            }
+            ctx_1.run_later(Duration::new(actor.refresh_rate, 0), |actor, ctx_2| {
+                 actor.renew_chain(ctx_2);
+            });
+           
+            fut::ok::<_, _,_>(())
+        }); 
+        ctx.spawn(
+            wrapped
+        );
     }
 }
 
@@ -61,8 +67,8 @@ impl Actor for MarkovActor {
 
     fn started(&mut self, ctx: &mut Self::Context) {
        
-        println!("MarkovActor started!");
-        self.get_new_chain(ctx);
+        info!("MarkovActor started!");
+        self.renew_chain(ctx);
 
     }
 }
@@ -70,8 +76,21 @@ impl Actor for MarkovActor {
 impl Handler<MarkovGenerate> for MarkovActor {
     type Result = MessageResult<MarkovGenerate>;   // <- Message response type
 
-    fn handle(&mut self, msg: MarkovGenerate, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: MarkovGenerate, _ctx: &mut Context<Self>) -> Self::Result {
         MessageResult(self.markov_chain.generate(msg.max_words))
+    }
+}
+
+impl Handler<MarkovFeed> for MarkovActor {
+    type Result = MessageResult<MarkovFeed>;   // <- Message response type
+
+    fn handle(&mut self, msg: MarkovFeed, _ctx: &mut Context<Self>) -> Self::Result {
+        let tokens: &Vec<String> = &msg.input.split_whitespace()
+                                .filter(|&s| !s.is_empty())
+                                .map(|s| s.to_string())
+                                .collect();
+        self.markov_chain.add(tokens);
+        MessageResult(())
     }
 }
 
@@ -203,14 +222,15 @@ fn html_unescape(input: &str) -> String{
     
 }
 
-fn fill_markov(board: String, mut markov_chain: GenericMarkovChain<String>) -> impl Future<Item=GenericMarkovChain<String>, Error=FetchError> {
 
+fn get_tokenized_comments(board: String) -> impl Future<Item=Vec<Vec<String>>, Error=FetchError> {
+   
     fetch_threads(&board)
         .or_else(|e| {
             match e {
-                //FetchError::Http(e) => eprintln!("http error during page retrieval: {}", e),
-                FetchError::Json(e) => eprintln!("json parsing error during page retrieval: {}", e),
-                FetchError::Other(e) => eprintln!("other error during page retrieval: {}", e),
+                FetchError::Http(e) => error!("http error during page retrieval: {}", e),
+                FetchError::Json(e) => error!("json parsing error during page retrieval: {}", e),
+                FetchError::Other(e) => error!("other error during page retrieval: {}", e),
             }
             let fake_pages: Vec<ChanPage> = Vec::new();
             Ok(fake_pages)
@@ -223,9 +243,9 @@ fn fill_markov(board: String, mut markov_chain: GenericMarkovChain<String>) -> i
                     fetch_thread(&board, *i)
                     .or_else(|e| {
                         match e {
-                            //FetchError::Http(e) => eprintln!("http error: {}", e),
-                            FetchError::Json(e) => eprintln!("json parsing error: {}", e),
-                            FetchError::Other(e) => eprintln!("other error: {}", e),
+                            FetchError::Http(e) => error!("http error: {}", e),
+                            FetchError::Json(e) => error!("json parsing error during thread fetch: {}", e),
+                            FetchError::Other(e) => error!("other error during thread fetch: {}", e),
                         }
                         let fake_result: Thread = Thread{posts: Vec::new()};
                         Ok(fake_result)
@@ -234,27 +254,27 @@ fn fill_markov(board: String, mut markov_chain: GenericMarkovChain<String>) -> i
             });
             join_all(futures)
         })
-        .map(move |result|{
-
-            result.iter().for_each(|t|{
+        .map(move |threads|{
+            let mut result:Vec<Vec<String>> = Vec::new();
+            threads.iter().for_each(|t|{
                 let comments :Vec<String> = t.posts.iter()   
                                             .map(|post| html_unescape(&post.com))
+                                            
                                             .map(|s| clean_post(&s))
                                             .filter(|s| !s.is_empty()).collect();
-                //println!("Got comments: {}",comments.len());
                 comments.iter()
                 .flat_map(|s| s.split("\n"))
                 .for_each(|s| {
-                    let tokens: &Vec<String> = &s.split_whitespace()
+                    let tokenized_comment: Vec<String> = s.split_whitespace()
                                 .filter(|&s| !s.is_empty())
                                 .map(|s| s.to_string())
                                 .collect();
-                    markov_chain.add(tokens)
+                    result.push(tokenized_comment);
                 } 
                 );
             });
-            println!("Finished Updating chain");
-            markov_chain
+            info!("Finished getting tokenized comments: {}", result.len());
+            result
         })
         
 }
@@ -304,7 +324,7 @@ fn fetch_threads(board: &str) -> impl Future<Item=Vec<ChanPage>, Error=FetchErro
 
 
 fn fetch_thread(board: &str, thread: i32) -> impl Future<Item=Thread, Error=FetchError> {
-    println!("Fetching thread: {}",thread);
+    info!("Fetching thread: {}",thread);
     let url = "http://a.4cdn.org/?/thread/#.json".replace("?", board).replace("#", thread.to_string().as_str());//.parse().unwrap();
     httputil::fetch_json_actix::<Thread>(url)
     

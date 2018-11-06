@@ -7,6 +7,7 @@ use indexmap::IndexSet;
 use rand::prelude::*;
 
 
+
 #[derive(Debug)]
 pub struct GenericMarkovChain <T: Eq + Hash + Clone>{
     order: i32,
@@ -18,6 +19,17 @@ impl<T: Eq + Hash + Clone> GenericMarkovChain<T> {
 
     pub fn new(order: i32)-> GenericMarkovChain<T> {
          GenericMarkovChain { order, starter: IndexSet::new(), markov_body: HashMap::new() }
+    }
+
+    pub fn len(&mut self) -> usize {
+       self.markov_body.len()
+    }
+
+    pub fn clear(&mut self) {
+       self.markov_body.clear();
+       self.markov_body.shrink_to_fit();
+       self.starter.clear();
+       
     }
 
     pub fn add(&mut self, tokens: &[T]) where T: Eq + Hash + Clone{

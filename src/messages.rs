@@ -6,3 +6,11 @@ pub struct MarkovGenerate{
 impl actix::Message for MarkovGenerate {
     type Result = Vec<String>;
 }
+
+pub struct MarkovFeed{
+    pub input: String,
+}
+
+impl actix::Message for MarkovFeed {
+    type Result = ();
+}

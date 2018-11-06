@@ -1,21 +1,21 @@
 extern crate serde;
 extern crate serde_json;
-//extern crate hyper;
+extern crate hyper;
 extern crate actix_web;
 
 
 // Define a type so we can return multiple types of errors
 pub enum FetchError {
-    //Http(hyper::Error),
+    Http(hyper::Error),
     Json(serde_json::Error),
     Other(String),
 }
 
-/*impl From<hyper::Error> for FetchError {
+impl From<hyper::Error> for FetchError {
     fn from(err: hyper::Error) -> FetchError {
         FetchError::Http(err)
     }
-} */
+} 
 
 impl From<serde_json::Error> for FetchError {
     fn from(err: serde_json::Error) -> FetchError {

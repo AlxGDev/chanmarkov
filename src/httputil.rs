@@ -7,15 +7,14 @@ extern crate actix_web;
 use futures::Future;
 use futures::Stream;
 
-//use hyper::Client;
-//use hyper_tls::HttpsConnector;
+use hyper::Client;
+use hyper_tls::HttpsConnector;
 use errors::FetchError;
 use std::time::Duration;
 
 use actix_web::{client, HttpMessage};
 
-
-/*pub fn fetch_json_hyper<T: serde::de::DeserializeOwned>(uri: hyper::Uri) -> impl Future<Item=T, Error=FetchError> {
+pub fn fetch_json_hyper<T: serde::de::DeserializeOwned>(uri: hyper::Uri) -> impl Future<Item=T, Error=FetchError> {
     
     let https = HttpsConnector::new(4).expect("TLS initialization failed");
     let client = Client::builder().build::<_, hyper::Body>(https);
@@ -38,7 +37,7 @@ use actix_web::{client, HttpMessage};
             .from_err();
     get
         
-}*/
+}
 
 pub fn fetch_json_actix<T: serde::de::DeserializeOwned>(url: String) -> impl Future<Item=T, Error=FetchError> {
     let get = client::get(url)
