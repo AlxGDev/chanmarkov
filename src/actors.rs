@@ -25,7 +25,7 @@ pub struct MarkovActor {
 impl MarkovActor {
 
     pub fn new(board: String, order: i32, refresh_rate: u64)-> MarkovActor {
-         MarkovActor { markov_chain: GenericMarkovChain::new(order), board: board, refresh_rate: refresh_rate }
+         MarkovActor { markov_chain: GenericMarkovChain::new(order), board, refresh_rate }
     }
 
     fn renew_chain(&self, ctx: &mut Context<Self>) {
@@ -263,7 +263,7 @@ fn get_tokenized_comments(board: String) -> impl Future<Item=Vec<Vec<String>>, E
                                             .map(|s| clean_post(&s))
                                             .filter(|s| !s.is_empty()).collect();
                 comments.iter()
-                .flat_map(|s| s.split("\n"))
+                .flat_map(|s| s.split('\n'))
                 .for_each(|s| {
                     let tokenized_comment: Vec<String> = s.split_whitespace()
                                 .filter(|&s| !s.is_empty())
@@ -317,7 +317,7 @@ fn clean_post(post: &str) -> String{
 }
 
 fn fetch_threads(board: &str) -> impl Future<Item=Vec<ChanPage>, Error=FetchError> {
-    let url = str::replace("http://a.4cdn.org/?/threads.json", "?", board);//.parse().unwrap();
+    let url = str::replace("https://a.4cdn.org/?/threads.json", "?", board);//.parse().unwrap();
     httputil::fetch_json_actix::<Vec<ChanPage>>(url)
   
 }
@@ -325,7 +325,7 @@ fn fetch_threads(board: &str) -> impl Future<Item=Vec<ChanPage>, Error=FetchErro
 
 fn fetch_thread(board: &str, thread: i32) -> impl Future<Item=Thread, Error=FetchError> {
     info!("Fetching thread: {}",thread);
-    let url = "http://a.4cdn.org/?/thread/#.json".replace("?", board).replace("#", thread.to_string().as_str());//.parse().unwrap();
+    let url = "https://a.4cdn.org/?/thread/#.json".replace("?", board).replace("#", thread.to_string().as_str());//.parse().unwrap();
     httputil::fetch_json_actix::<Thread>(url)
     
 }

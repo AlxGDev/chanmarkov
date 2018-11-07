@@ -1,7 +1,4 @@
 
-extern crate serde;
-extern crate serde_json;
-
 #[derive(Deserialize, Debug)]
 pub struct ChanPage {
     pub page: i32,

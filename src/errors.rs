@@ -1,7 +1,6 @@
-extern crate serde;
-extern crate serde_json;
-extern crate hyper;
-extern crate actix_web;
+use serde_json;
+use hyper;
+use actix_web;
 
 
 // Define a type so we can return multiple types of errors
